@@ -1,0 +1,83 @@
+name: build
+
+on:
+  push:
+    branches:
+      - 'master'
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      -
+        name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.25.0
+
+      -
+        name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      -
+        name: Tests
+        run: |
+          go mod tidy
+          go build -v -trimpath
+          go test -v ./...
+
+      -
+        name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v7
+        if: success() && startsWith(github.ref, 'refs/tags/')
+        with:
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      -
+        name: Install Cloudsmith CLI
+        run: pip install --upgrade cloudsmith-cli
+        if: success() && startsWith(github.ref, 'refs/tags/')
+
+      -
+        name: Publish package to cloudsmith
+        if: success() && startsWith(github.ref, 'refs/tags/')
+        env:
+          CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
+        run: |
+          for filepath in dist/*; do
+            echo "== Analyzing '$filepath' for publishing"
+            filename=$(basename -- "$filepath")
+            extension="${filename##*.}"
+            filename="${filename%.*}"
+            case "$extension" in
+            'apk')
+              echo "Pushing '$filepath' to cloudsmith repo"
+              cloudsmith push alpine suntong/repo/alpine/any-version $filepath
+              ;;
+            'deb' | 'rpm')
+              echo "Pushing '$filepath' to cloudsmith repo"
+              cloudsmith push $extension suntong/repo/any-distro/any-version $filepath
+              ;;
+            *)
+              echo "File .$extension skipped publishing"
+              echo
+              ;;
+            esac
+          done

@@ -1,8 +1,11 @@
 module phw
 
-go 1.25.6
+go 1.25.0
 
-require github.com/shirou/gopsutil/v4 v4.26.4
+require (
+	github.com/shirou/gopsutil/v4 v4.26.4
+	golang.org/x/term v0.43.0
+)
 
 require (
 	github.com/ebitengine/purego v0.10.0 // indirect
@@ -13,5 +16,4 @@ require (
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	golang.org/x/sys v0.44.0 // indirect
-	golang.org/x/term v0.43.0 // indirect
 )
