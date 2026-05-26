@@ -172,13 +172,13 @@ func NewProcessMonitor() (*ProcessMonitor, error) {
 	pm.dashboard.SetStartLine(startLine)
 	pm.dashboard.Init()
 
-	// Setup signal handling for graceful shutdown and resize
+	// Setup signal handling for graceful shutdown
 	pm.setupSignalHandler()
 
 	return pm, nil
 }
 
-// setupSignalHandler sets up signal handling for graceful shutdown and terminal resize
+// setupSignalHandler sets up signal handling for graceful shutdown
 func (pm *ProcessMonitor) setupSignalHandler() {
 	sigChan := make(chan os.Signal, 1)
 	// Common signals: interrupt, terminate, quit
@@ -186,21 +186,13 @@ func (pm *ProcessMonitor) setupSignalHandler() {
 	signals := []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT}
 	signal.Notify(sigChan, signals...)
 
-	winchChan := make(chan os.Signal, 1)
-	signal.Notify(winchChan, syscall.SIGWINCH)
-
 	go func() {
-		for {
-			select {
-			case <-sigChan:
-				pm.dashboard.Shutdown()
-				pm.cancel()
-				return
-			case <-winchChan:
-				pm.dashboard.Resize()
-			case <-pm.ctx.Done():
-				return
-			}
+		select {
+		case <-sigChan:
+			pm.dashboard.Shutdown()
+			pm.cancel()
+		case <-pm.ctx.Done():
+			return
 		}
 	}()
 }
