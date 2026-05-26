@@ -1,4 +1,4 @@
-module process-monitor
+module phw
 
 go 1.25.6
 
