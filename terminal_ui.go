@@ -47,7 +47,7 @@ func NewTerminalDashboard() *TerminalDashboard {
 
 // getTerminalSize returns the current terminal height and width in characters.
 // If detection fails, returns safe defaults.
-func (d *TerminalDashboard) getTerminalSize() (height, width int, err error) {
+func getTerminalSize() (height, width int, err error) {
 	fd := int(os.Stdout.Fd())
 	if !term.IsTerminal(fd) {
 		return 24, 80, nil
@@ -82,7 +82,7 @@ func (d *TerminalDashboard) Init() {
 		// Safety: default to line 1 if not set
 		d.startLine = 1
 	}
-	h, w, _ := d.getTerminalSize()
+	h, w, _ := getTerminalSize()
 	d.height = h - d.startLine + 1
 	if d.height < 1 {
 		d.height = 1
@@ -109,7 +109,7 @@ func (d *TerminalDashboard) Resize() {
 	if !d.active {
 		return
 	}
-	h, w, _ := d.getTerminalSize()
+	h, w, _ := getTerminalSize()
 	newHeight := h - d.startLine + 1
 	if newHeight < 1 {
 		newHeight = 1
@@ -177,14 +177,15 @@ func (d *TerminalDashboard) LogPersistent(msg string) {
 		return
 	}
 
-	// 1. Move to dashboard header line (e.g., line 4)
+	// 1. Move to dashboard header line (e.g., line 4) & clear the line
 	fmt.Printf(defaultCursorHome, d.startLine)
+	fmt.Print(defaultClearLine)
 
 	// 2. Print the message without newline
-	fmt.Print(msg)
+	log.Print(msg)
 
 	// 3. Move cursor to the bottom line of the terminal
-	h, _, _ := d.getTerminalSize()
+	h, _, _ := getTerminalSize()
 	fmt.Printf(defaultCursorHome, h)
 
 	// 4. Print a newline -> terminal scrolls up by one line
@@ -202,7 +203,7 @@ func (d *TerminalDashboard) LogPersistent(msg string) {
 func (d *TerminalDashboard) Shutdown() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	h, _, _ := d.getTerminalSize()
+	h, _, _ := getTerminalSize()
 	// Move cursor to the last line of the terminal
 	fmt.Printf(defaultCursorHome, h)
 	log.Println("Interrupted. Goodbye.                                           ")

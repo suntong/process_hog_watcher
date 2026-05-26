@@ -130,8 +130,7 @@ func NewProcessMonitor() (*ProcessMonitor, error) {
 	// Startup messages and terminal scrolling (to place them at the top)
 	// -------------------------------------------------------------------------
 	// Get terminal height
-	tempDash := NewTerminalDashboard()
-	termHeight, termWidth, _ := tempDash.getTerminalSize()
+	termHeight, termWidth, _ := getTerminalSize()
 
 	// Define the 3 preserved lines (order: first becomes top‑most after scroll)
 	startupLines := []string{
@@ -268,6 +267,9 @@ func (pm *ProcessMonitor) collectCPUSamples() {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
+	// Test: log a fake PID to verify persistent logging
+	//pm.testPersistentLogging()
+
 	// Ensure all filtered processes exist in the map
 	for _, p := range filtered {
 		if _, exists := pm.cpuDataMap[p.PID]; !exists {
@@ -377,7 +379,7 @@ func (pm *ProcessMonitor) refreshDashboardAndKill() {
 		return
 	}
 
-	header := fmt.Sprintf("%-8s %-20s %-8s %-8s %-8s %-8s %s",
+	header := fmt.Sprintf("\033[36m%-8s %-20s %-8s %-8s %-8s %-8s %s\033[0m",
 		"PID", "NAME", "CPU%", "AVG", "MAX", "MIN", "EXCEED/TOTAL")
 	separator := strings.Repeat("-", pm.dashboard.width)
 	rows := []string{header, separator}
@@ -527,4 +529,31 @@ func getEnvDurationWithDefault(key string, defaultValue time.Duration) time.Dura
 		}
 	}
 	return defaultValue
+}
+
+// testPersistentLogging is a temporary test function that logs a fake process ID
+// that increases with every call, just to verify that LogPersistent writes to the
+// scroll‑back buffer correctly.
+func (pm *ProcessMonitor) testPersistentLogging() {
+	//pm.mu.Lock()
+	// Use a package‑level counter (or a field) to generate sequential IDs.
+	// A simple package‑level variable is fine for this temporary test.
+	// We'll define it outside.
+	//pm.mu.Unlock()
+
+	fakePID := nextTestPID() // see below
+	msg := fmt.Sprintf("TEST PID %04d – persistent log check", fakePID)
+	pm.dashboard.LogPersistent(msg)
+}
+
+var (
+	testPIDMu    sync.Mutex
+	testPIDCount = 1000
+)
+
+func nextTestPID() int {
+	testPIDMu.Lock()
+	defer testPIDMu.Unlock()
+	testPIDCount++
+	return testPIDCount
 }
