@@ -1,5 +1,7 @@
 version: 2
 
+# 1. Define the project name globally. 
+# {{ .ProjectName }} will now dynamically resolve to "phw" everywhere below.
 project_name: phw
 
 before:
@@ -7,7 +9,10 @@ before:
     - go mod tidy
 
 builds:
-  - env:
+  - #id: phw
+    # `id` & `binary` defaults to the `project_name` automatically, so you don't 
+    # even need to explicitly define then here.
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
@@ -16,13 +21,15 @@ builds:
     goarch:
       - amd64
       - arm64
-    binary: phw
+    # Strips debug information to keep binaries small
     ldflags:
       - -s -w
 
 nfpms:
-  - file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
-    package_name: phw
+  - id: phw
+    # 3. Using variables for the Linux packaging
+    package_name: "{{ .ProjectName }}"
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     homepage: https://github.com/suntong/process_hog_watcher
     maintainer: suntong
     description: Process Hog Watcher
@@ -33,21 +40,21 @@ nfpms:
       - rpm
 
 archives:
-  - format: tar.gz
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+  - formats:
+      - tar.gz
+    # 2. Reverted back to using variables
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
-
-checksum:
-  name_template: 'checksums.txt'
+        formats:
+          - zip
 
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-snapshot"
 
 changelog:
   sort: asc
   filters:
     exclude:
-      - '^docs:'
-      - '^test:'
+      - "^docs:"
+      - "^test:"
