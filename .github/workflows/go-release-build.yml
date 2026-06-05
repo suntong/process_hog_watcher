@@ -53,12 +53,12 @@ jobs:
 
       -
         name: Install Cloudsmith CLI
-        run: pip install --upgrade cloudsmith-cli
         if: success() && startsWith(github.ref, 'refs/tags/')
-        # Cloudsmith CLI tooling for pushing releases
-        # See https://help.cloudsmith.io/docs/cli
+        uses: cloudsmith-io/cloudsmith-cli-action@v2
+        with:
+          api-key: ${{ secrets.CLOUDSMITH_API_KEY }}
+          cli-version: 'latest'
 
-      # Publish to cloudsmith repo
       -
         name: Publish package to cloudsmith
         if: success() && startsWith(github.ref, 'refs/tags/')
