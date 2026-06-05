@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/process"
 )
 
@@ -67,13 +68,16 @@ type ProcessInfo struct {
 
 // CPUUsageData stores CPU usage samples for a process
 type CPUUsageData struct {
-	PID         int32
-	Name        string
-	Samples     []float64
-	AverageCPU  float64
-	MaxCPU      float64
-	MinCPU      float64
-	ExceedCount int
+	PID            int32
+	Name           string
+	ProcHandle     *process.Process // persistent handle for CPU sampling
+	prevTimes      *cpu.TimesStat   // previous CPU times for delta calculation
+	lastSampleTime time.Time        // wall clock time of the previous sample
+	Samples        []float64
+	AverageCPU     float64
+	MaxCPU         float64
+	MinCPU         float64
+	ExceedCount    int
 }
 
 // ProcessMonitor handles the monitoring and control of processes
@@ -266,21 +270,48 @@ func (pm *ProcessMonitor) collectCPUSamples() {
 	for _, p := range filtered {
 		if _, exists := pm.cpuDataMap[p.PID]; !exists {
 			pm.cpuDataMap[p.PID] = &CPUUsageData{
-				PID:     p.PID,
-				Name:    p.Name,
-				Samples: make([]float64, 0),
+				PID:            p.PID,
+				Name:           p.Name,
+				ProcHandle:     p.Process,
+				prevTimes:      nil,
+				lastSampleTime: time.Time{},
+				Samples:        make([]float64, 0),
 			}
 		}
 	}
 
-	// Collect one sample per process
-	for _, p := range filtered {
-		cpuPercent, err := p.Process.CPUPercent()
-		if err != nil {
-			// Process may have terminated; skip this sample
+	// Collect one sample per process using the stored handle
+	for pid, data := range pm.cpuDataMap {
+		if data.ProcHandle == nil {
 			continue
 		}
-		data := pm.cpuDataMap[p.PID]
+		times, err := data.ProcHandle.Times()
+		if err != nil {
+			// Process may have terminated; skip this sample
+			delete(pm.cpuDataMap, pid)
+			continue
+		}
+		now := time.Now()
+		if data.prevTimes == nil {
+			// First sample: store baseline and skip to allow a full interval next time
+			data.prevTimes = times
+			data.lastSampleTime = now
+			continue
+		}
+		// Calculate per-core CPU% like `top`
+		deltaCPU := (times.User + times.System) - (data.prevTimes.User + data.prevTimes.System)
+		deltaWall := now.Sub(data.lastSampleTime).Seconds()
+		var cpuPercent float64
+		if deltaWall > 0 {
+			cpuPercent = 100.0 * deltaCPU / deltaWall
+		}
+		data.prevTimes = times
+		data.lastSampleTime = now
+
+		// DEBUG: use LogPersistent to keep the message in the scroll-back buffer
+		// pm.dashboard.LogPersistent(fmt.Sprintf("DEBUG CPU sample: PID=%d name=%s cpu=%.2f%% (per-core)",
+		// 	data.PID, data.Name, cpuPercent))
+
 		// Append sample and maintain sliding window
 		data.Samples = append(data.Samples, cpuPercent)
 		windowSize := int(pm.config.DataCollectionDuration / pm.config.CPUSamplingInterval)
