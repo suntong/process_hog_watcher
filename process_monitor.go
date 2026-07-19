@@ -391,6 +391,11 @@ func (pm *ProcessMonitor) refreshDashboardAndKill() {
 
 	// Kill any process that should be killed (needs write lock)
 	for _, snap := range snapshots {
+		// Only consider processes that have accumulated a full sliding window of samples
+		windowSize := int(pm.config.DataCollectionDuration / pm.config.CPUSamplingInterval)
+		if len(snap.data.Samples) < windowSize {
+			continue
+		}
 		if pm.shouldKillProcess(snap.data) {
 			go pm.killProcessAsync(snap.data)
 		}
